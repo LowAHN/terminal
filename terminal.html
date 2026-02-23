@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: #050810;
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+  }
+
+  .terminal {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border: 1px solid #1a2540;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(0,245,255,0.05);
+  }
+
+  /* 타이틀 바 */
+  .titlebar {
+    background: #0a0f1c;
+    border-bottom: 1px solid #1a2540;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; }
+  .dot.y { background: #febc2e; }
+  .dot.g { background: #28c840; }
+  .bar-title { flex: 1; text-align: center; font-size: 11px; color: #5a6e99; }
+  .bar-title b { color: #00f5ff; }
+
+  /* 상태바 */
+  .statusbar {
+    background: #0d1320;
+    border-bottom: 1px solid #1a2540;
+    padding: 5px 18px;
+    display: flex;
+    gap: 20px;
+    font-size: 11px;
+    color: #2a3550;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  .statusbar::-webkit-scrollbar { display: none; }
+  .s-item { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .s-dot { width: 5px; height: 5px; border-radius: 50%; background: #00FFB2; box-shadow: 0 0 5px #00FFB2; animation: pulse 2s infinite; }
+  .green { color: #00FFB2; }
+  .cyan  { color: #00f5ff; }
+  .gold  { color: #ffd60a; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* 출력 */
+  .output {
+    flex: 1;
+    background: #050810;
+    padding: 14px 18px 0;
+    overflow-y: auto;
+    font-size: 12.5px;
+    line-height: 1.8;
+    scroll-behavior: smooth;
+  }
+  .output::-webkit-scrollbar { width: 3px; }
+  .output::-webkit-scrollbar-thumb { background: #1a2540; border-radius: 2px; }
+
+  .line { margin-bottom: 1px; animation: lineIn 0.1s ease both; }
+  .blank { height: 7px; }
+  .prompt-line { display: flex; gap: 8px; }
+  @keyframes lineIn { from{opacity:0;transform:translateX(-3px)} to{opacity:1;transform:translateX(0)} }
+
+  .ps1 { white-space: nowrap; color: #7b2fff; }
+  .ps1 .h { color: #00f5ff; }
+  .ps1 .s { color: #2a3550; }
+  .ps1 .p { color: #00FFB2; }
+  .cmd { color: #e2eaff; }
+
+  /* 입력 */
+  .inputbar {
+    background: #050810;
+    border-top: 1px solid #1a2540;
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  #cmd {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #e2eaff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    caret-color: #00f5ff;
+  }
+  #cmd::placeholder { color: #2a3550; }
+
+  /* 힌트 */
+  .hintbar {
+    background: #080d1a;
+    border-top: 1px solid #1a2540;
+    padding: 6px 18px;
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .hint {
+    font-size: 10.5px;
+    color: #2a3550;
+    border: 1px solid #1a2540;
+    padding: 2px 9px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .hint:hover { color: #00f5ff; border-color: #00f5ff; background: rgba(0,245,255,0.06); }
+</style>
+</head>
+<body>
+<div class="terminal">
+
+  <div class="titlebar">
+    <div class="dots">
+      <div class="dot r"></div>
+      <div class="dot y"></div>
+      <div class="dot g"></div>
+    </div>
+    <div class="bar-title"><b>endofpython</b>@blog ~ bash</div>
+    <div style="font-size:10px;color:#2a3550;border:1px solid #1a2540;padding:2px 8px;border-radius:4px;">zsh 5.9</div>
+  </div>
+
+  <div class="statusbar">
+    <div class="s-item"><div class="s-dot"></div><span class="green">online</span></div>
+    <div class="s-item">region: <span class="cyan">ap-northeast-2</span></div>
+    <div class="s-item">kernel: <span class="green">6.7.0-endofpython</span></div>
+    <div class="s-item">uptime: <span class="green" id="uptime">00:00:00</span></div>
+    <div class="s-item">load: <span class="gold" id="load">0.42</span></div>
+  </div>
+
+  <div class="output" id="output"></div>
+
+  <div class="inputbar">
+    <span class="ps1"><span class="h">endofpython</span><span class="s">@blog:</span><span class="p" id="curpath">~</span><span class="s"> $</span></span>
+    <input id="cmd" type="text" placeholder="help 로 시작하세요..." autocomplete="off" spellcheck="false"/>
+  </div>
+
+  <div class="hintbar">
+    <div class="hint" onclick="run('help')">help</div>
+    <div class="hint" onclick="run('whoami')">whoami</div>
+    <div class="hint" onclick="run('ls')">ls</div>
+    <div class="hint" onclick="run('cat about.txt')">cat about.txt</div>
+    <div class="hint" onclick="run('cat stack.txt')">cat stack.txt</div>
+    <div class="hint" onclick="run('neofetch')">neofetch</div>
+    <div class="hint" onclick="run('git log')">git log</div>
+    <div class="hint" onclick="run('ps aux')">ps aux</div>
+    <div class="hint" onclick="run('df -h')">df -h</div>
+    <div class="hint" onclick="run('contact')">contact</div>
+    <div class="hint" onclick="run('clear')">clear</div>
+  </div>
+</div>
+
+<script>
+// ── 파일시스템 ──────────────────────────────
+var FS = {
+  '~':          ['about.txt','stack.txt','posts/','projects/','contact.sh','.bashrc','.zshrc'],
+  '~/posts':    ['k8s-crashloop-fix.md','terraform-aws-guide.md','python-automation.md','argocd-setup.md','grafana-dashboard.md'],
+  '~/projects': ['infra-automation/','k8s-operator/','monitoring-stack/','ci-cd-template/'],
+};
+var FILES = {
+  'about.txt': [
+    {c:'#00f5ff', v:'╔══════════════════════════════════╗'},
+    {c:'#00f5ff', v:'║       ENDOFPYTHON.DEV            ║'},
+    {c:'#00f5ff', v:'╚══════════════════════════════════╝'},
+    {c:'',v:''},
+    {c:'tbl', k:'Name',     d:'EndofPython'},
+    {c:'tbl', k:'Role',     d:'DevOps / Infra Engineer'},
+    {c:'tbl', k:'Location', d:'Seoul, Korea 🇰🇷'},
+    {c:'tbl', k:'Focus',    d:'K8s · IaC · CI/CD · Automation'},
+    {c:'',v:''},
+    {c:'#2a3550', v:'# 현업에서 얻은 인사이트를 솔직하게 공유합니다.'},
+    {c:'#2a3550', v:'# 삽질 과정 포함. 공식 문서 번역 아님.'},
+  ],
+  'stack.txt': [
+    {c:'#ffd60a', v:'── Container & Orchestration ──'},
+    {c:'#5a6e99', v:'  Docker · Kubernetes · Helm · Kustomize'},
+    {c:'',v:''},
+    {c:'#ffd60a', v:'── IaC & CI/CD ──'},
+    {c:'#5a6e99', v:'  Terraform · Ansible · ArgoCD · GitHub Actions'},
+    {c:'',v:''},
+    {c:'#ffd60a', v:'── Cloud ──'},
+    {c:'#5a6e99', v:'  AWS (EKS, RDS, S3, VPC) · GCP · Cloudflare'},
+    {c:'',v:''},
+    {c:'#ffd60a', v:'── Observability ──'},
+    {c:'#5a6e99', v:'  Prometheus · Grafana · ELK Stack · Jaeger'},
+  ],
+  '.bashrc': [
+    {c:'#2a3550', v:'# ~/.bashrc — endofpython'},
+    {c:'',v:''},
+    {c:'#00FFB2', v:'export KUBECONFIG="$HOME/.kube/config"'},
+    {c:'#00FFB2', v:'export AWS_REGION="ap-northeast-2"'},
+    {c:'',v:''},
+    {c:'#2a3550', v:'# aliases'},
+    {c:'#00f5ff',  v:"alias k='kubectl'"},
+    {c:'#00f5ff',  v:"alias tf='terraform'"},
+    {c:'#00f5ff',  v:"alias dc='docker-compose'"},
+  ],
+  '.zshrc': [
+    {c:'#2a3550', v:'# ~/.zshrc — endofpython'},
+    {c:'',v:''},
+    {c:'#00FFB2', v:'ZSH_THEME="agnoster"'},
+    {c:'#00FFB2', v:'plugins=(git kubectl terraform aws docker)'},
+  ],
+  'contact.sh': [
+    {c:'#2a3550', v:'#!/bin/bash'},
+    {c:'#2a3550', v:'# contact.sh'},
+    {c:'',v:''},
+    {c:'#00f5ff',  v:'echo "Blog:   endofpython.blogspot.com"'},
+    {c:'#00f5ff',  v:'echo "GitHub: github.com/endofpython"'},
+    {c:'#ffd60a',  v:'echo "DM 환영합니다 🤙"'},
+  ],
+};
+
+// ── 명령어 ──────────────────────────────────
+var CMDS = {
+  help: function() {
+    return [
+      {c:'#00f5ff', v:'┌─ Commands ──────────────────────────────────────┐'},
+      {c:'help', cmd:'whoami',        desc:'블로그 주인장 정보'},
+      {c:'help', cmd:'ls [dir]',      desc:'파일 목록'},
+      {c:'help', cmd:'cat <file>',    desc:'파일 내용 보기'},
+      {c:'help', cmd:'cd <dir>',      desc:'디렉토리 이동'},
+      {c:'help', cmd:'neofetch',      desc:'시스템 정보'},
+      {c:'help', cmd:'ps aux',        desc:'실행 중 프로세스'},
+      {c:'help', cmd:'df -h',         desc:'디스크 사용량'},
+      {c:'help', cmd:'git log',       desc:'최근 포스트'},
+      {c:'help', cmd:'uname -a',      desc:'커널 정보'},
+      {c:'help', cmd:'contact',       desc:'연락처'},
+      {c:'help', cmd:'clear',         desc:'화면 지우기'},
+      {c:'#00f5ff', v:'└─────────────────────────────────────────────────┘'},
+    ];
+  },
+  whoami: function() {
+    return [
+      {c:'#00FFB2', v:'endofpython'},
+      {c:'',v:''},
+      {c:'#2a3550', v:'uid=1000(endofpython) gid=1000(devops)'},
+      {c:'#2a3550', v:'groups=docker,kubernetes,terraform,sudo'},
+    ];
+  },
+  'uname -a': function() {
+    return [{c:'#5a6e99', v:'Linux endofpython 6.7.0-endofpython #1 SMP x86_64 GNU/Linux'}];
+  },
+  'ps aux': function() {
+    return [
+      {c:'#e2eaff', v:'USER        PID  %CPU  %MEM  COMMAND'},
+      {c:'#00FFB2', v:'endofpy     001   0.0   0.1  /sbin/init'},
+      {c:'#00f5ff', v:'endofpy     042   2.4   3.2  kubectl get pods -A -w'},
+      {c:'#00f5ff', v:'endofpy     108   1.1   2.8  terraform plan -out=tfplan'},
+      {c:'#ffd60a', v:'endofpy     204   0.8   1.4  python3 monitor.py --alert'},
+      {c:'#00f5ff', v:'endofpy     317   0.3   0.9  argocd app sync production'},
+      {c:'#7b2fff', v:'endofpy     999   4.2   8.1  ./write-blog-post.sh'},
+    ];
+  },
+  'df -h': function() {
+    return [
+      {c:'#e2eaff', v:'Filesystem       Size   Used  Avail  Use%  Mounted on'},
+      {c:'#00FFB2', v:'/dev/knowledge   500G   312G  188G    62%  /'},
+      {c:'#00f5ff', v:'/dev/experience   10Y   7.3Y  2.7Y   73%  /career'},
+      {c:'#5a6e99', v:'/dev/coffee       INF    INF   INF    ∞%   /motivation'},
+      {c:'#ffd60a', v:'tmpfs              32G   0.1G  31.9G   0%  /ideas'},
+    ];
+  },
+  'git log': function() {
+    var now = new Date();
+    var fmt = function(d) { return d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'}); };
+    return [
+      {c:'#ffd60a', v:'commit a3f9c12  (HEAD → main, origin/main)'},
+      {c:'#2a3550', v:'Date:   ' + fmt(now)},
+      {c:'#5a6e99', v:'    feat: Kubernetes CrashLoopBackOff 완전 정복'},
+      {c:'',v:''},
+      {c:'#ffd60a', v:'commit b91de04'},
+      {c:'#2a3550', v:'Date:   ' + fmt(new Date(now - 86400000*3))},
+      {c:'#5a6e99', v:'    fix: Terraform AWS VPC 모듈 리팩토링'},
+      {c:'',v:''},
+      {c:'#ffd60a', v:'commit c44fa17'},
+      {c:'#2a3550', v:'Date:   ' + fmt(new Date(now - 86400000*7))},
+      {c:'#5a6e99', v:'    docs: ArgoCD GitOps 파이프라인 구축 가이드'},
+      {c:'',v:''},
+      {c:'#ffd60a', v:'commit d72bc91'},
+      {c:'#2a3550', v:'Date:   ' + fmt(new Date(now - 86400000*14))},
+      {c:'#5a6e99', v:'    feat: Grafana 대시보드 자동 프로비저닝'},
+    ];
+  },
+  neofetch: function() {
+    return [
+      {c:'#00f5ff', v:"       _                 "},
+      {c:'#00f5ff', v:"  ___ | |__   ___  _ __  "},
+      {c:'#00f5ff', v:" / _ \\| '_ \\ / _ \\| '_ \\ "},
+      {c:'#00f5ff', v:"|  __/| | | | (_) | |_) |"},
+      {c:'#00f5ff', v:" \\___|_| |_|\\___/| .__/ "},
+      {c:'#00f5ff', v:"                 |_|     "},
+      {c:'',v:''},
+      {c:'tbl', k:'OS',      d:'EndofPython Linux 6.7.0'},
+      {c:'tbl', k:'Host',    d:'Blog Server (ap-northeast-2)'},
+      {c:'tbl', k:'Shell',   d:'zsh 5.9 + oh-my-zsh'},
+      {c:'tbl', k:'CPU',     d:'Brain @ 3.6GHz (overclock중)'},
+      {c:'tbl', k:'Memory',  d:'64GB Coffee-Powered DDR5'},
+      {c:'tbl', k:'Uptime',  d:'Since First Commit'},
+      {c:'',v:''},
+      {c:'colors',v:''},
+    ];
+  },
+  contact: function() {
+    return [
+      {c:'#00f5ff', v:'── Contact ──────────────────────────────'},
+      {c:'tbl', k:'Blog',   d:'endofpython.blogspot.com'},
+      {c:'tbl', k:'GitHub', d:'github.com/endofpython'},
+      {c:'',v:''},
+      {c:'#2a3550', v:'# 기술 질문, 협업 제안 환영합니다 🤙'},
+    ];
+  },
+  clear: function() { return '__clear__'; },
+};
+
+// ── 상태 변수 ────────────────────────────────
+var curPath  = '~';
+var hist     = [];
+var histIdx  = -1;
+var startTs  = Date.now();
+
+// ── 렌더 함수 ────────────────────────────────
+function append(lines) {
+  var out = document.getElementById('output');
+  lines.forEach(function(l, i) {
+    var el = document.createElement('div');
+    el.style.animationDelay = (i * 22) + 'ms';
+
+    if (!l.c && (l.v === '' || l.v === undefined)) {
+      el.className = 'blank';
+    } else if (l.c === 'tbl') {
+      el.className = 'line';
+      el.innerHTML = '<span style="color:#00FFB2;display:inline-block;min-width:110px;">' + l.k + '</span>' +
+                     '<span style="color:#5a6e99;">' + l.d + '</span>';
+    } else if (l.c === 'help') {
+      el.className = 'line';
+      el.innerHTML = '<span style="color:#1a2540;">│</span>  ' +
+                     '<span style="color:#00f5ff;display:inline-block;min-width:150px;">' + l.cmd + '</span>' +
+                     '<span style="color:#5a6e99;">' + l.desc + '</span>';
+    } else if (l.c === 'colors') {
+      el.className = 'line';
+      var cols = ['#ff5f57','#febc2e','#28c840','#00f5ff','#7b2fff','#ff3d71','#ffd60a','#00FFB2'];
+      el.innerHTML = cols.map(function(c) {
+        return '<span style="background:' + c + ';color:' + c + ';border-radius:2px;padding:0 8px;margin-right:3px;">██</span>';
+      }).join('');
+    } else {
+      el.className = 'line';
+      el.style.color = l.c || '#5a6e99';
+      el.textContent = l.v || '';
+    }
+    out.appendChild(el);
+  });
+  out.scrollTop = out.scrollHeight;
+}
+
+function addPrompt(cmd) {
+  var out = document.getElementById('output');
+  var el = document.createElement('div');
+  el.className = 'line prompt-line';
+  el.innerHTML =
+    '<span class="ps1"><span class="h">endofpython</span><span class="s">@blog:</span>' +
+    '<span class="p">' + curPath + '</span><span class="s"> $</span></span> ' +
+    '<span class="cmd">' + cmd + '</span>';
+  out.appendChild(el);
+  out.scrollTop = out.scrollHeight;
+}
+
+// ── 명령어 실행 ──────────────────────────────
+function run(raw) {
+  var cmd = (raw || '').trim();
+  if (!cmd) return;
+
+  hist.unshift(cmd);
+  histIdx = -1;
+  document.getElementById('cmd').value = '';
+
+  addPrompt(cmd);
+
+  // ls
+  if (cmd === 'ls' || cmd.indexOf('ls ') === 0) {
+    var target = cmd === 'ls' ? curPath : '~/' + cmd.split(' ')[1];
+    var files = FS[target] || FS[curPath] || [];
+    if (!files.length) { append([{c:'#2a3550', v:'(empty)'}]); return; }
+    append(files.map(function(f) {
+      return { c: f.endsWith('/') ? '#00f5ff' : f.startsWith('.') ? '#2a3550' : '#00FFB2', v: f };
+    }));
+    return;
+  }
+
+  // cd
+  if (cmd.indexOf('cd ') === 0) {
+    var dir = cmd.split(' ')[1];
+    if (dir === '~' || !dir) {
+      curPath = '~';
+    } else if (dir === '..') {
+      curPath = curPath.indexOf('/') > -1 ? curPath.split('/').slice(0,-1).join('/') : '~';
+    } else {
+      var np = curPath === '~' ? '~/' + dir : curPath + '/' + dir;
+      if (FS[np]) { curPath = np; }
+      else { append([{c:'#ff3d71', v:'cd: ' + dir + ': No such file or directory'}]); return; }
+    }
+    document.getElementById('curpath').textContent = curPath;
+    return;
+  }
+
+  // cat
+  if (cmd.indexOf('cat ') === 0) {
+    var fname = cmd.split(' ')[1];
+    if (FILES[fname]) { append(FILES[fname]); return; }
+    append([{c:'#ff3d71', v:'cat: ' + fname + ': No such file or directory'}]);
+    return;
+  }
+
+  // clear
+  if (cmd === 'clear') {
+    document.getElementById('output').innerHTML = '';
+    return;
+  }
+
+  // 등록 명령어
+  var fn = CMDS[cmd];
+  if (fn) {
+    var result = fn();
+    if (result === '__clear__') { document.getElementById('output').innerHTML = ''; }
+    else { append(result); }
+    return;
+  }
+
+  // not found
+  append([
+    {c:'#ff3d71', v:'command not found: ' + cmd},
+    {c:'#2a3550', v:"hint: 'help' 를 입력해보세요."},
+  ]);
+}
+
+// ── 키보드 이벤트 ────────────────────────────
+document.getElementById('cmd').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    run(this.value);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (histIdx < hist.length - 1) { histIdx++; this.value = hist[histIdx]; }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (histIdx > 0) { histIdx--; this.value = hist[histIdx]; }
+    else { histIdx = -1; this.value = ''; }
+  } else if (e.key === 'Tab') {
+    e.preventDefault();
+    var v = this.value;
+    var all = Object.keys(CMDS).concat(['ls','cd','cat','clear']);
+    var m = all.find(function(c) { return c.indexOf(v) === 0 && c !== v; });
+    if (m) this.value = m;
+  }
+});
+
+// 터미널 클릭시 포커스
+document.querySelector('.terminal').addEventListener('click', function() {
+  document.getElementById('cmd').focus();
+});
+
+// ── 업타임 & 로드 ────────────────────────────
+setInterval(function() {
+  var s = Math.floor((Date.now() - startTs) / 1000);
+  var h = Math.floor(s / 3600).toString().padStart(2,'0');
+  var m = Math.floor((s % 3600) / 60).toString().padStart(2,'0');
+  var sec = (s % 60).toString().padStart(2,'0');
+  document.getElementById('uptime').textContent = h + ':' + m + ':' + sec;
+  document.getElementById('load').textContent = (0.2 + Math.random() * 0.5).toFixed(2);
+}, 1000);
+
+// ── 부팅 메시지 ──────────────────────────────
+append([
+  {c:'#00f5ff', v:'EndofPython OS v2026.02 (Kernel 6.7.0-endofpython)'},
+  {c:'#2a3550', v:'Booting DevOps environment...'},
+  {c:'',v:''},
+  {c:'#00FFB2', v:'[  OK  ] Kubernetes cluster connected'},
+  {c:'#00FFB2', v:'[  OK  ] Terraform state loaded'},
+  {c:'#00FFB2', v:'[  OK  ] ArgoCD sync complete'},
+  {c:'#00FFB2', v:'[  OK  ] Blog server deployed'},
+  {c:'',v:''},
+  {c:'#ffd60a', v:'  ⚡ 환영합니다! 명령어를 직접 입력해보세요.'},
+  {c:'#2a3550', v:'  ↑↓ 히스토리   Tab 자동완성   help 명령어 목록'},
+  {c:'',v:''},
+]);
+document.getElementById('cmd').focus();
+</script>
+</body>
+</html>
