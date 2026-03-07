@@ -286,25 +286,38 @@ var CMDS = {
     ];
   },
   'git log': function() {
-    var now = new Date();
-    var fmt = function(d) { return d.toLocaleDateString('ko-KR',{month:'short',day:'numeric'}); };
-    return [
-      {c:'#ffd60a', v:'commit a3f9c12  (HEAD → main, origin/main)'},
-      {c:'#2a3550', v:'Date:   ' + fmt(now)},
-      {c:'#5a6e99', v:'    feat: Kubernetes CrashLoopBackOff 완전 정복'},
-      {c:'',v:''},
-      {c:'#ffd60a', v:'commit b91de04'},
-      {c:'#2a3550', v:'Date:   ' + fmt(new Date(now - 86400000*3))},
-      {c:'#5a6e99', v:'    fix: Terraform AWS VPC 모듈 리팩토링'},
-      {c:'',v:''},
-      {c:'#ffd60a', v:'commit c44fa17'},
-      {c:'#2a3550', v:'Date:   ' + fmt(new Date(now - 86400000*7))},
-      {c:'#5a6e99', v:'    docs: ArgoCD GitOps 파이프라인 구축 가이드'},
-      {c:'',v:''},
-      {c:'#ffd60a', v:'commit d72bc91'},
-      {c:'#2a3550', v:'Date:   ' + fmt(new Date(now - 86400000*14))},
-      {c:'#5a6e99', v:'    feat: Grafana 대시보드 자동 프로비저닝'},
-    ];
+    // 실제 블로그에서 최근 포스트 가져오기
+    append([{c:'#2a3550', v:'Fetching from origin...'}]);
+    var url = 'https://www.endoflinux.com/feeds/posts/default?alt=json&max-results=8';
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var entries = (data.feed && data.feed.entry) || [];
+        if (!entries.length) {
+          append([{c:'#ff3d71', v:'fatal: no commits found'}]);
+          return;
+        }
+        var lines = [];
+        entries.forEach(function(entry, i) {
+          var title = entry.title.$t || 'untitled';
+          var date = new Date(entry.published.$t);
+          var fmt = date.toLocaleDateString('ko-KR', {year:'numeric', month:'short', day:'numeric'});
+          var hash = Math.random().toString(16).substr(2, 7);
+          var head = i === 0 ? '  (HEAD → main, origin/main)' : '';
+          lines.push({c:'#ffd60a', v:'commit ' + hash + head});
+          lines.push({c:'#2a3550', v:'Date:   ' + fmt});
+          // 라벨 가져오기
+          var labels = (entry.category || []).map(function(c) { return c.term; }).join(', ');
+          var prefix = labels ? '[' + labels + '] ' : '';
+          lines.push({c:'#5a6e99', v:'    ' + prefix + title});
+          lines.push({c:'',v:''});
+        });
+        append(lines);
+      })
+      .catch(function() {
+        append([{c:'#ff3d71', v:'fatal: unable to access origin'}]);
+      });
+    return '__async__';
   },
   neofetch: function() {
     return [
@@ -444,6 +457,7 @@ function run(raw) {
   if (fn) {
     var result = fn();
     if (result === '__clear__') { document.getElementById('output').innerHTML = ''; }
+    else if (result === '__async__') { /* 비동기 명령어 - append는 내부에서 처리 */ }
     else { append(result); }
     return;
   }
