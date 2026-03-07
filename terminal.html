@@ -169,6 +169,7 @@
     <div class="hint" onclick="run('git log')">git log</div>
     <div class="hint" onclick="run('ps aux')">ps aux</div>
     <div class="hint" onclick="run('df -h')">df -h</div>
+    <div class="hint" onclick="run('open 1')">open 1</div>
     <div class="hint" onclick="run('contact')">contact</div>
     <div class="hint" onclick="run('clear')">clear</div>
   </div>
@@ -249,6 +250,7 @@ var CMDS = {
       {c:'help', cmd:'df -h',         desc:'디스크 사용량'},
       {c:'help', cmd:'git log',       desc:'최근 포스트'},
       {c:'help', cmd:'uname -a',      desc:'커널 정보'},
+      {c:'help', cmd:'open <번호>',    desc:'git log 포스트 열기'},
       {c:'help', cmd:'contact',       desc:'연락처'},
       {c:'help', cmd:'clear',         desc:'화면 지우기'},
       {c:'#00f5ff', v:'└─────────────────────────────────────────────────┘'},
@@ -297,6 +299,8 @@ var CMDS = {
           append([{c:'#ff3d71', v:'fatal: no commits found'}]);
           return;
         }
+        // 포스트 캐시 저장 (open 명령어용)
+        _postCache = [];
         var lines = [];
         entries.forEach(function(entry, i) {
           var title = entry.title.$t || 'untitled';
@@ -304,14 +308,18 @@ var CMDS = {
           var fmt = date.toLocaleDateString('ko-KR', {year:'numeric', month:'short', day:'numeric'});
           var hash = Math.random().toString(16).substr(2, 7);
           var head = i === 0 ? '  (HEAD → main, origin/main)' : '';
+          // URL 추출
+          var postUrl = '';
+          (entry.link || []).forEach(function(lk) { if (lk.rel === 'alternate') postUrl = lk.href; });
+          _postCache.push({title: title, url: postUrl, hash: hash});
           lines.push({c:'#ffd60a', v:'commit ' + hash + head});
           lines.push({c:'#2a3550', v:'Date:   ' + fmt});
-          // 라벨 가져오기
           var labels = (entry.category || []).map(function(c) { return c.term; }).join(', ');
           var prefix = labels ? '[' + labels + '] ' : '';
-          lines.push({c:'#5a6e99', v:'    ' + prefix + title});
+          lines.push({c:'link', v:'    ' + prefix + title, url: postUrl});
           lines.push({c:'',v:''});
         });
+        lines.push({c:'#2a3550', v:'hint: open <번호> 로 포스트를 열 수 있습니다. (예: open 1)'});
         append(lines);
       })
       .catch(function() {
@@ -321,10 +329,9 @@ var CMDS = {
   },
   neofetch: function() {
     return [
-      {c:'#00f5ff', v:"  _____ _  _____  ___  ___ _    ___ _  _ _   ___  __"},
-      {c:'#00f5ff', v:" | ____| \\| |   \\ / _ \\| __| |  |_ _| \\| | | | \\/ /"},
-      {c:'#00f5ff', v:" |  _| | .` | |) | (_) | _|| |__ | || .` | |_| |>  < "},
-      {c:'#00f5ff', v:" |___|_|\\_|___/ \\___/|_| |____|___|_|\\_|\\___/_/\\_\\"},
+      {c:'#00f5ff', v:"  ╔═╗╔╗╔╔╦╗╔═╗╔═╗╦  ╦╔╗╔╦ ╦═╗ ╦"},
+      {c:'#00f5ff', v:"  ║╣ ║║║ ║║║ ║║╣ ║  ║║║║║ ║╔╩╦╝"},
+      {c:'#00f5ff', v:"  ╚═╝╝╚╝═╩╝╚═╝╚  ╩═╝╩╝╚╝╚═╝╩ ╚═"},
       {c:'',v:''},
       {c:'tbl', k:'OS',      d:'EndofLinux 6.7.0'},
       {c:'tbl', k:'Host',    d:'Blog Server (ap-northeast-2)'},
@@ -349,10 +356,11 @@ var CMDS = {
 };
 
 // ── 상태 변수 ────────────────────────────────
-var curPath  = '~';
-var hist     = [];
-var histIdx  = -1;
-var startTs  = Date.now();
+var curPath    = '~';
+var hist       = [];
+var histIdx    = -1;
+var startTs    = Date.now();
+var _postCache = [];
 
 // ── 렌더 함수 ────────────────────────────────
 function append(lines) {
@@ -367,6 +375,14 @@ function append(lines) {
       el.className = 'line';
       el.innerHTML = '<span style="color:#00FFB2;display:inline-block;min-width:110px;">' + l.k + '</span>' +
                      '<span style="color:#5a6e99;">' + l.d + '</span>';
+    } else if (l.c === 'link') {
+      el.className = 'line';
+      el.style.color = '#5a6e99';
+      el.style.cursor = 'pointer';
+      el.textContent = l.v || '';
+      el.addEventListener('mouseenter', function() { this.style.color = '#00f5ff'; this.style.textDecoration = 'underline'; });
+      el.addEventListener('mouseleave', function() { this.style.color = '#5a6e99'; this.style.textDecoration = 'none'; });
+      (function(url) { el.addEventListener('click', function() { if (url) window.open(url, '_blank'); }); })(l.url);
     } else if (l.c === 'help') {
       el.className = 'line';
       el.innerHTML = '<span style="color:#1a2540;">│</span>  ' +
@@ -443,6 +459,26 @@ function run(raw) {
     var fname = cmd.split(' ')[1];
     if (FILES[fname]) { append(FILES[fname]); return; }
     append([{c:'#ff3d71', v:'cat: ' + fname + ': No such file or directory'}]);
+    return;
+  }
+
+  // open
+  if (cmd.indexOf('open ') === 0) {
+    var num = parseInt(cmd.split(' ')[1]);
+    if (!_postCache.length) {
+      append([{c:'#ff3d71', v:'open: git log 를 먼저 실행하세요.'}]);
+      return;
+    }
+    if (isNaN(num) || num < 1 || num > _postCache.length) {
+      append([{c:'#ff3d71', v:'open: 1~' + _postCache.length + ' 사이 번호를 입력하세요.'}]);
+      return;
+    }
+    var post = _postCache[num - 1];
+    append([
+      {c:'#00FFB2', v:'Opening: ' + post.title},
+      {c:'#2a3550', v:post.url},
+    ]);
+    if (post.url) window.open(post.url, '_blank');
     return;
   }
 
