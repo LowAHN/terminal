@@ -469,9 +469,28 @@ document.getElementById('cmd').addEventListener('keydown', function(e) {
   } else if (e.key === 'Tab') {
     e.preventDefault();
     var v = this.value;
-    var all = Object.keys(CMDS).concat(['ls','cd','cat','clear']);
-    var m = all.find(function(c) { return c.indexOf(v) === 0 && c !== v; });
-    if (m) this.value = m;
+    var parts = v.split(' ');
+    if (parts.length >= 2) {
+      // 파일명/디렉토리 자동완성
+      var base = parts[0];
+      var partial = parts.slice(1).join(' ');
+      var items = [];
+      if (base === 'cat') {
+        items = Object.keys(FILES);
+      } else if (base === 'ls' || base === 'cd') {
+        var dirs = Object.keys(FS);
+        items = (FS[curPath] || []).filter(function(f) { return f.endsWith('/'); }).map(function(f) { return f.replace('/',''); });
+      } else {
+        items = (FS[curPath] || []);
+      }
+      var match = items.find(function(f) { return f.indexOf(partial) === 0 && f !== partial; });
+      if (match) this.value = base + ' ' + match;
+    } else {
+      // 명령어 자동완성
+      var all = Object.keys(CMDS).concat(['ls','cd','cat','clear']);
+      var m = all.find(function(c) { return c.indexOf(v) === 0 && c !== v; });
+      if (m) this.value = m;
+    }
   }
 });
 
