@@ -129,6 +129,19 @@
     transition: all 0.15s;
   }
   .hint:hover { color: #00f5ff; border-color: #00f5ff; background: rgba(0,245,255,0.06); }
+
+  @media (max-width: 600px) {
+    .terminal-body, .output { font-size: 11px; padding: 10px 12px; }
+    .titlebar { padding: 8px 12px; }
+    .statusbar { padding: 4px 12px; font-size: 10px; }
+    .inputbar { padding: 8px 12px; }
+    .hintbar { padding: 5px 12px; }
+    .hint { font-size: 9.5px; padding: 2px 7px; }
+    .line { word-break: break-word; }
+    .prompt-line { flex-wrap: wrap; }
+    .bar-title { font-size: 10px; }
+    #cmd { font-size: 11px; }
+  }
 </style>
 </head>
 <body>
@@ -288,43 +301,48 @@ var CMDS = {
     ];
   },
   'git log': function() {
-    // 실제 블로그에서 최근 포스트 가져오기
+    // 실제 블로그에서 최근 포스트 가져오기 (JSONP — CORS 우회)
     append([{c:'#2a3550', v:'Fetching from origin...'}]);
-    var url = 'https://www.endoflinux.com/feeds/posts/default?alt=json&max-results=8';
-    fetch(url)
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var entries = (data.feed && data.feed.entry) || [];
-        if (!entries.length) {
-          append([{c:'#ff3d71', v:'fatal: no commits found'}]);
-          return;
-        }
-        // 포스트 캐시 저장 (open 명령어용)
-        _postCache = [];
-        var lines = [];
-        entries.forEach(function(entry, i) {
-          var title = entry.title.$t || 'untitled';
-          var date = new Date(entry.published.$t);
-          var fmt = date.toLocaleDateString('ko-KR', {year:'numeric', month:'short', day:'numeric'});
-          var hash = Math.random().toString(16).substr(2, 7);
-          var head = i === 0 ? '  (HEAD → main, origin/main)' : '';
-          // URL 추출
-          var postUrl = '';
-          (entry.link || []).forEach(function(lk) { if (lk.rel === 'alternate') postUrl = lk.href; });
-          _postCache.push({title: title, url: postUrl, hash: hash});
-          lines.push({c:'#ffd60a', v:'commit ' + hash + head});
-          lines.push({c:'#2a3550', v:'Date:   ' + fmt});
-          var labels = (entry.category || []).map(function(c) { return c.term; }).join(', ');
-          var prefix = labels ? '[' + labels + '] ' : '';
-          lines.push({c:'link', v:'    ' + prefix + title, url: postUrl});
-          lines.push({c:'',v:''});
-        });
-        lines.push({c:'#2a3550', v:'hint: open <번호> 로 포스트를 열 수 있습니다. (예: open 1)'});
-        append(lines);
-      })
-      .catch(function() {
-        append([{c:'#ff3d71', v:'fatal: unable to access origin'}]);
+    var cbName = '_blogFeedCb_' + Date.now();
+    window[cbName] = function(data) {
+      delete window[cbName];
+      var s = document.getElementById('_jsonp_script');
+      if (s) s.remove();
+      var entries = (data.feed && data.feed.entry) || [];
+      if (!entries.length) {
+        append([{c:'#ff3d71', v:'fatal: no commits found'}]);
+        return;
+      }
+      _postCache = [];
+      var lines = [];
+      entries.forEach(function(entry, i) {
+        var title = entry.title.$t || 'untitled';
+        var date = new Date(entry.published.$t);
+        var fmt = date.toLocaleDateString('ko-KR', {year:'numeric', month:'short', day:'numeric'});
+        var hash = Math.random().toString(16).substr(2, 7);
+        var head = i === 0 ? '  (HEAD → main, origin/main)' : '';
+        var postUrl = '';
+        (entry.link || []).forEach(function(lk) { if (lk.rel === 'alternate') postUrl = lk.href; });
+        _postCache.push({title: title, url: postUrl, hash: hash});
+        lines.push({c:'#ffd60a', v:'commit ' + hash + head});
+        lines.push({c:'#2a3550', v:'Date:   ' + fmt});
+        var labels = (entry.category || []).map(function(c) { return c.term; }).join(', ');
+        var prefix = labels ? '[' + labels + '] ' : '';
+        lines.push({c:'link', v:'    ' + prefix + title, url: postUrl});
+        lines.push({c:'',v:''});
       });
+      lines.push({c:'#2a3550', v:'hint: open <번호> 로 포스트를 열 수 있습니다. (예: open 1)'});
+      append(lines);
+    };
+    var sc = document.createElement('script');
+    sc.id = '_jsonp_script';
+    sc.src = 'https://www.endoflinux.com/feeds/posts/default?alt=json-in-script&callback=' + cbName + '&max-results=8';
+    sc.onerror = function() {
+      delete window[cbName];
+      sc.remove();
+      append([{c:'#ff3d71', v:'fatal: unable to access origin'}]);
+    };
+    document.head.appendChild(sc);
     return '__async__';
   },
   neofetch: function() {
